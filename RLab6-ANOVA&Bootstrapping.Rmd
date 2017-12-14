@@ -1,0 +1,285 @@
+---
+title: 'Rlab 6: Bootstrapping and ANOVA'
+author: "Marius Popescu"
+date: "June 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The first portion of this lab will make use of the data set `InsectSprays`.  This data set (as is clear from `?InsectSprays`) measures the count of insects found in regions sprayed with different insecticides (in 1942).
+
+To make it easier (so we can just type `count` instead of `InsectSprays$count` each time), we'l "attach" the data set:
+
+```{r}
+attach(InsectSprays)
+```
+
+This will be an appropriate data set for exploring ANOVA, and we will also use it for examining bootstrapping.
+
+## Task 1: Preliminary analysis
+
+a. What does the first row "10,A" mean in this data set?
+
+ANSWER: The row 10,A represents that in the region sprayed with the insecticide "A" were found 10 insects.
+
+b. Let's look at some summary statistics for the full data set. To speed up the process (instead of having to compute these for each subset of data) we'll use the `tapply()` function which is a helpful shortcut in processing data. Basically it lets you specify a response variable, a factor (or factors) and a function that should be
+applied to each subset of the response variable defined by each level of the factor. I.e. Instead
+of doing: `mean(subset(count,spray=="A")])` for each of `A,B,C,D,E,F` individually, we can use:
+
+```{r}
+tapply(count,spray,mean)
+```
+
+To examine the variance of each:
+```{r}
+tapply(count,spray,var)
+```
+
+And to examine the sample size of each:
+```{r}
+tapply(count,spray,length)
+```
+
+**Based solely on the descriptive statistics, what is your preliminary conclusion regarding the differing efficacy of these different insecticides?**
+
+ANSWER: My prelliminary conclusion is that the most efficient insecticide is "C", followed by the insecticide " E" and "D". The worst efficacy has the insecticide "F".
+
+c. **Create a side-by-side boxplot of the insect counts for the different insecticides**.  Note that it is NOT sufficient to run the following code:
+
+```{r}
+boxplot(InsectSprays)
+```
+Why not: what is produced from that code?
+
+ANSWER: That plot is produced a incorect boxplot without the insecticides on the x axis. Instead it has count and spray on x axis. 
+
+Instead, since you want the insect count as influenced by different spray type, use R's syntax of `count~spray` to indicated you want count as an approximate function of spray. Add appropriate axis labels and title to the following code and use it to produce your side-by-side boxplot:
+
+```{r}
+boxplot(count~spray,data=InsectSprays, xlab=" Type of insecticide", ylab = "the count of insects found ", main = " The count of insects found in regions sprayed with different insecticides")
+
+```
+
+d. The boxplot provides strong evidence for which of the following statements?
+[More than one may be correct. Erase any that are NOT supported by the boxplot, leaving only the supported statements in your report.]
+
+-"Insecticide *C* is certainly the best at reducing the number of insects."
+
+-"Insecticides *C,D,E* seem to do a significantly better job at removing insects compared to insecticides *A,B,F*."
+
+-"The maximum number of insects left on a region sprayed with insecticide *E* was greater than the maximum number left on a region sprayed with insecticide *C*."
+
+-"The variation seems to be larger when the average number of insects for an insecticide is larger."
+
+
+## Task 2: Using linear regression to analyze the impact of each group using regression:
+
+First, we'll just build and analyze a linear regression by using code similar to the last lab.  HOWEVER, in this case the independent variable (spray) is actually qualitative.  R handles this by treating sprayA as the "default" type and then treating the other sprays as binary variables (as we discussed in class).  
+
+```{r}
+LinearModelCounts=lm(count~spray,data=InsectSprays)
+summary(LinearModelCounts)
+plot(LinearModelCounts)
+```
+
+You'll notice that the NormalQ-Q plot doesn't look particularly good, indicating the residuals aren't normally distributed.
+
+Compare this to a model where instead of fitting counts, you fit sqrt(counts) based on the spray type:
+
+```{r}
+LinearModelSqrtCounts=lm(sqrt(count)~spray,data=InsectSprays)
+summary(LinearModelSqrtCounts)
+plot(LinearModelSqrtCounts)
+```
+
+a. Find and explain at least three indicators for how the square root of the counts is better predicted (linearly) by spray type than the original counts.
+
+ANSWER: Residual Standar error is one of them, because it is lower like in the original counts.
+The normal QQ plot is another indicaror because it is look more liniar for the square root model.
+The third one is the constant leverage plot.
+
+b. Examining the summary of the Square-root model, what piece(s) of information indicate that spray C,D,E have (on average) significantly fewer insects?
+
+ANSWER: The "P-value" indicate that spray C,D,E have significantly fewer insects.
+
+c. If sprayF is actually equivalent in efficacy to sprayA, what is the chance you'd end up with data showing as significance a difference as you found here?
+
+ANSWER: The chance to end up with data showing as significance a difference is 31.8%.
+
+##Task 3: Analysis of Variance
+
+We'll first build up an "Analysis of Variance" object type using R's `aov()` command. Since the square root of count seemed to be better predicted, we'll continue to use that here:
+
+```{r}
+InsectSprayAoV=aov(sqrt(count)~spray,data=InsectSprays)
+summary(InsectSprayAoV)
+```
+
+To read this, consider the following: the top row analyzes the variance of group averages from the overall average, while the bottom row analyzes the variance inside each group.   
+
+**Top Row**
+
+- $DF=5$ based on the 6 total groups (A,B,C,D,E,F). 
+
+- $Sum\ Sq= \sum_{g\in A,B,C,D,E,F} (\bar{y_g}-\bar{y})^2$ the sum of the square differences of the group means from the overall mean.
+
+-$Mean\ Sq =\frac{Sum\ Sq}{DF}$. This is just the average squared distance of the group means from the overall mean.
+
+**Bottom Row:**
+
+-$DF=66$ (there were 72 data points total, but one each is `used up' in computation of each group's mean, leaving 66).
+
+-$Sum\ Sq=\sum_{g\in {A,\ldots, F}}\sum_{i=1}^{12}(y_i-\bar{y_g})^2$ This is the total sum of the square distance of all individual instances from their group mean.  
+-$Mean\ Sq$ again this is just the "average" distance of individaul count values from their group mean.
+
+
+**Test values:**
+
+-F value: This is the ratio $$\frac{\text{Mean Sq distance between group averages}}{\text{Mean Sq distance within groups}}=\frac{17.688}{0.395}$$  If the groups do a good job of explaining the output (insect counts) then within each group there should be a small variance (Mean Sq) compared to between groups. In that case, the F value should be very large, and the probability of getting that F value if the groups are `random' (poor predictors) should be VERY low.
+
+a. What do you conclude from the summary, taking into account the information annotated above?
+
+ANSWER: From the F value I conclude that the mean square distance between group average is much more bigger like the mean sq distance wihin groups. There is more variation outside the group like inside the group. 
+
+Note that the `aov()` output doesn't break it down into individual groups: it just gives an indication whether (at least some of) the groups are important sources of variance in the full data set.
+
+We can use the `aov()` object to get a pairwise comparison of groups, using a "Tukey HSD" test. This runs all of the $\mu_1-\mu_2$ tests for pairwise differences in means (like we talked about in class), and produces a confidence interval and p-value (to test against the Null assumption that $\mu_1-\mu_2=0$).
+
+The following code produces 90\% Confidence intervals:
+
+```{r}
+TukeyHSD(InsectSprayAoV,conf.level=0.9)
+
+```
+b. Create the 95% confidence intervals by slightly modifying the code, and then state which pairs of insecticides do not have sufficient evidence (based on this sample) for true differences in their mean efficacy.
+
+```{r}
+TukeyHSD(InsectSprayAoV,conf.level=0.95)
+
+```
+
+ANSWER: The pairs of insecticides that do not have sufficient evidences are: B-A, F-A, F-B, E-C, E-D.
+
+**Before moving on, it's a good practice to "clean up" by detaching the `InsectSprays` data set:
+```{r}
+detach(InsectSprays)
+```
+
+## Task 4: Bootstrapping
+
+For this task, I'm going to ask you to use a common random seed of `2` so that your results are reproducible and match my own:
+```{r}
+set.seed(2)
+```
+
+As an app designer, you care about initial launch time for your newly designed app.  If new users experience a first launch time that is too long, they are far more likely to switch to a competitor's product.
+
+What really matters, however, is not the {\bf average} launch time-- it's the upper range (we'll use the 99th percentile as a model for this).
+
+
+In this task we'll create a "true" and a bootstrapped distribution for the 99th percentile of an exponential distribution (to model the "wait time" before app launch), and then we'll compare the two.
+
+For both parts, the following function will be of help:
+
+```{r,eval=FALSE}
+quantile(SAMPLE,0.99) # This will output the 99th percentile of a SAMPLE
+```
+
+**Part I: True distribution of sample 99th percentiles (samples come from the full distribution)** 
+
+The following code builds up 99th percentiles from 10000 samples (each of which draws 1000 observations directly from the exponential distribution). We'll assume there is an average wait time of 40 seconds.
+
+```{r}
+SampleQuantiles=c() #Will contain the sampled 99th percentile
+for(i in 1:10000){
+  ReSample=rexp(1000,1/40)    #Create a sample from the full exponential distribution.
+  SampleQuantiles=c(SampleQuantiles,quantile(ReSample,0.99)) #Add the 99th quantile of this sample to the list
+}
+trueHist=hist(SampleQuantiles,breaks=50)
+plot(trueHist,col=rgb(0,0,1,1/4),freq=FALSE)
+```
+a. Write code to check the standard deviation (standard error) of the resulting sample quantiles, and also to find the 99th percentile (quantile) of the original distribution by using `qexp`.  Use both of these pieces of information to select and complete the valid descriptions (there might be more than one correct). Delete any incorrect descriptions.
+
+```{r}
+NinetyNinthpercentile=qexp(.99,1/40)#True 99th percentile of full population
+NinetyNinthpercentile
+PopMean=40
+sd(SampleQuantiles)
+```
+- The 99th percentiles of samples drawn from the exponential distribution follow a normal distribution with mean equal to the 99th percentile of the original distribution which is __184.2____.
+
+- Although the sampled 99th percentiles follow a normal distribution, their standard error is not $\frac{\sigma}{\sqrt{n}}$. This standard error for the sampled 99th percentile is (approximately) 12.298.
+
+
+
+
+
+**Part II: Bootstrapped distribution of sampled 99th percentiles.**
+
+Here we'll imagine that you don't have unlimited access to sample from the full population: you took 1000 samples once, and then want to milk the data you collected for all it was worth.  
+
+Here's the sample you ended up with (again we're assuming the average launch time is 40 seconds):
+```{r}
+OriginalSample=rexp(1000,1/40)
+```
+
+a. Based solely on this sample, what is the point estimate for the 99th quantile (percentile) of launch times?
+
+ANSWER: The point estimate for the 99th quantile (percentile) of launch times is 174
+
+If you only had this sample, you wouldn't have the ability to accurately determine how far your point estimate of the 99th percentile is from the full population's 99th percentile.  Unfortunately (as you saw in Part I) you can't just use $\frac{\sigma}{\sqrt{n}}$-- the best you can do is estimate this standard error by bootstrapping!
+
+
+To perform this bootstrapping we'll use essentially the same code we used for the SampleQuantiles from the full distribution: except you will need to complete the correct way of creating ReSample such that each ReSample is a bootstrapped sample drawn only from the OriginalSample (with replacement). Also remember to remove `eval=FALSE` so this code is actually run:
+
+```{r}
+BSQuantiles=c() #Bootstrapped 99th quantiles list
+for(i in 1:10000){
+  ReSample=sample(OriginalSample,1000,replace=TRUE)   #Create a bootstrapped sample (with replacement)
+  BSQuantiles=c(BSQuantiles,quantile(ReSample,0.99))
+}
+BSHist=hist(BSQuantiles,breaks=50,freq=FALSE)
+```
+
+To ensure you've done this correctly, write and run code to ensure that the BSQuantiles are centered (approximately) around the 99th quantile of the OriginalSample.
+
+Note that the 99th quantile of the OriginalSample doesn't match perfectly with the 99th quantile of the actual full distribution-- so the bootstrapped distribution will be centered differently from the true sample 99th percentile distribution.  But what we'd really like to check is whether the standard error of 99th percentiles from the bootstrapped samples is a reasonable approximation of the standard error of 99th percentiles of samples drawn originally from the full population.  To check this, find the standard deviations of `BSQuantiles` and `SampleQuantiles`.  Are they:
+
+```{r}
+sd(BSQuantiles)
+sd(SampleQuantiles)
+```
+
+1) Within an order of magnitude of each other?
+2) Within 10% of each other?
+3) Within 5% of each other?
+4) Within 1% of each other?
+5) Basically identical?
+
+ANSWER: They are within 10% of each other.
+
+It seems, therefore, that the bootstrapped standard error is a reasonable approximation for the amount you should expect sample 99th percentiles to deviate from the population 99th percentile.
+
+
+Using your bootstrapped standard error and your OriginalSample point estimate (and the fact that from Part I you know the 99th percentile for exponential distribution follows a normal distribution) to build a 95\% confidence interval for the 99th percentile of the launch time in the whole population.
+
+```{r}
+lower = 174 - 2*sd(BSQuantiles)
+lower
+upper = 174 + 2*sd(BSQuantiles)
+upper
+```
+
+ANSWER: The 95% confidence interval for the 99th percentile of the launch time in the whole population is fom 153.0791 to 194.9209
+
+**Side note**
+
+Here (once you create your BSQuantiles and delete `eval=False`) I'm just showing you how you can plot the bootstrapped histogram along with the (true) sample 99% median histogram. You'll see that the distributions are not perfectly aligned (they can't be since the OriginalSample's 99th percentile doesn't match the whole population's). But they do have similar spreads, despite having different centers.
+
+```{r}
+plot(trueHist,col=rgb(0,0,1,1/4),ylim=c(0,0.1),freq=FALSE)
+plot(BSHist,col=rgb(1,0,0,1/4),freq=FALSE,add=T)
+```
